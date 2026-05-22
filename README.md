@@ -15,3 +15,8 @@
 - Chroma：本地向量数据库
 - 智谱 AI：Embedding + GLM-4 大模型
 - Streamlit：Web 界面
+
+## 模型下载
+- 本项目使用 BAAI/bge-reranker-v2-m3 重排模型的本地部署版本
+- 由于模型文件较大，请手动下载后放入 `./models/` 目录：
+- 推荐访问官方网站进行下载:https://huggingface.co/BAAI/bge-reranker-v2-m3
