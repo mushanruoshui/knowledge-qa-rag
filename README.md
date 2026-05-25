@@ -1,22 +1,59 @@
-# 📚 个人知识库问答助手
+# RAG智能问答系统
 
-基于 RAG（检索增强生成）技术的个人知识库问答系统。
+基于检索增强生成（RAG）的本地知识库问答系统。
 
-## 功能特点
+## 功能特性
 
-- 支持多种文档格式：.txt, .pdf, .md, .docx
-- 本地向量存储（Chroma）
-- 使用智谱 AI 的 Embedding 和 GLM 模型
-- 提供命令行和 Web 两种交互界面
+- 支持多格式文档：TXT、PDF、Markdown、Word
+- 向量检索 + BGE重排序（Cross-Encoder）
+- 基于智谱AI GLM-4-Flash生成答案
+- Gradio Web界面，支持实时问答
+
+## 快速开始
+
+### 1. 安装依赖
+
+pip install -r requirements.txt
+
+### 2. 配置API Key
+
+创建 .env 文件：
+
+ZHIPU_API_KEY=你的智谱API密钥
+
+### 3. 准备知识库
+
+将文档放入 data/ 目录（支持上述格式）
+
+### 4. 构建向量库
+
+python build_vectorstore.py
+
+### 5. 启动应用
+
+python app.py
+
+访问 http://localhost:7860 即可使用
+
+## 项目结构
+
+- app.py              # Gradio Web界面
+- src/
+  - loader.py         # 文档加载
+  - splitter.py       # 文档切分
+  - vectorstore.py    # 向量库操作
+  - retriever.py      # 检索+重排
+  - chain.py          # LLM生成
+- data/               # 知识库文档
+- requirements.txt    # 依赖列表
+- .env                # API配置（不提交）
 
 ## 技术栈
 
-- LangChain：文档切分和流程编排
-- Chroma：本地向量数据库
-- 智谱 AI：Embedding + GLM-4 大模型
-- Streamlit：Web 界面
+- LangChain / Chroma / Sentence-Transformers
+- Gradio / ZhipuAI API
+- BAAI/bge-reranker-v2-m3
 
-## 模型下载
-- 本项目使用 BAAI/bge-reranker-v2-m3 重排模型的本地部署版本
-- 由于模型文件较大，请手动下载后放入 `./models/` 目录：
-- 推荐访问官方网站进行下载:https://huggingface.co/BAAI/bge-reranker-v2-m3
+## 演示/截图
+
+运行后访问本地7860端口，输入问题即可获得答案。
