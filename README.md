@@ -54,6 +54,6 @@ python app.py
 - Gradio / ZhipuAI API
 - BAAI/bge-reranker-v2-m3
 
-## 演示/截图
-
-运行后访问本地7860端口，输入问题即可获得答案。
+## 演示截图
+未上传api_key与本地模型
+![img.png](img.png)
