@@ -67,6 +67,7 @@ def load_documents(data_dir: str = "data"):
                     print(f"  错误: 无法读取 {filename}: {e}")
                     continue
 
+
             elif filename.endswith(".docx"):
                 try:
                     from docx import Document

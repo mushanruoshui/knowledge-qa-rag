@@ -31,7 +31,7 @@ def retrieve_relevant_chunks(vectorstore, query, k=3,verbose=False,use_reranker=
         print(f"向量检索（无重排）返回 {len(chunks)} 个片段")
         return chunks
 
-    k_candidate = min(20, vectorstore._collection.count())
+    k_candidate = min(10, vectorstore._collection.count())
     results = vectorstore.similarity_search(query, k=k_candidate)
 
     if not results:

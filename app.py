@@ -1,109 +1,103 @@
-# app.py - Streamlit Web 界面
-import streamlit as st
+# app.py
+import os
+os.environ['GRADIO_TEMP_DIR'] = r'E:\project_code\knowledge_qa\gradio_cache'
+
+import gradio as gr
 from src.vectorstore import load_vectorstore
-from src.chain import rag_query
+from src.retriever import retrieve_relevant_chunks
+from src.chain import generate_answer
 
-# 页面配置
-st.set_page_config(
-    page_title="个人知识库问答助手",
-    page_icon="📚",
-    layout="wide"
-)
+# 全局加载向量库（只加载一次）
+print("正在加载向量库...")
+vectorstore = load_vectorstore("./chroma_db")
+print("向量库加载完成！")
 
-# 标题
-st.title("📚 个人知识库问答助手")
-st.markdown("基于 RAG（检索增强生成）技术，回答你文档中的问题")
 
-# 初始化 session state（缓存向量库，避免每次提问都重新加载）
-if "vectorstore" not in st.session_state:
-    with st.spinner("正在加载知识库..."):
-        try:
-            st.session_state.vectorstore = load_vectorstore()
-            st.success("✅ 知识库加载成功！")
-        except Exception as e:
-            st.error(f"❌ 知识库加载失败: {e}")
-            st.info("请先运行 `python index.py` 构建向量库")
-            st.stop()
+def rag_query(user_query, k=3):
+    """处理用户查询，返回答案和检索到的片段"""
+    # 检索
+    chunks = retrieve_relevant_chunks(vectorstore, user_query, k=k, use_reranker=True)
 
-# 侧边栏
-with st.sidebar:
-    st.header("⚙️ 设置")
-    k_value = st.slider(
-        "检索文档块数量 (k)",
-        min_value=1,
-        max_value=10,
-        value=3,
-        help="数值越大，检索到的上下文越多，但可能引入噪音"
-    )
+    if not chunks:
+        return "❌ 未找到相关内容，请尝试其他问题。", ""
 
-    st.header("ℹ️ 使用说明")
-    st.markdown("""
-    1. 在下方输入问题
-    2. 系统会从知识库中检索相关内容
-    3. AI 基于检索结果生成答案
+    # 生成答案
+    answer = generate_answer(user_query, chunks)
 
-    **知识库文件位置**: `data/` 文件夹
+    # 格式化检索到的片段
+    retrieved_text = ""
+    for i, chunk in enumerate(chunks):
+        score = chunk.get('rerank_score', 'N/A')
+        content_preview = chunk['content'][:300]
+        retrieved_text += f"\n【片段 {i + 1}】 (相关性分数: {score})\n{content_preview}...\n{'-' * 50}\n"
 
-    **支持格式**: .txt, .pdf, .md, .docx
+    return answer, retrieved_text
+
+
+# 创建Gradio界面（修复版）
+with gr.Blocks(title="RAG智能问答系统") as demo:
+    gr.Markdown("""
+    # 📚 RAG智能问答系统
+
+    基于**检索增强生成**技术的本地知识库问答系统。
+
+    ### 特性
+    - 🔍 向量检索 + BGE重排序
+    - 💡 支持TXT、PDF、Markdown、Word文档
+    - 🚀 基于智谱AI GLM-4-Flash模型
     """)
 
-    st.header("📊 知识库状态")
-    st.info(f"当前检索参数: k = {k_value}")
+    with gr.Row():
+        with gr.Column(scale=3):
+            question_input = gr.Textbox(
+                label="💬 你的问题",
+                placeholder="输入你的问题，例如：什么是RAG？",
+                lines=2
+            )
+            k_slider = gr.Slider(
+                minimum=1, maximum=10, value=3, step=1,
+                label="检索文档块数量 (K值)",
+                info="越大可能越全面，但也可能引入噪音"
+            )
+            submit_btn = gr.Button("🚀 提交问题", variant="primary")
 
-# 主界面 - 聊天历史
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+        with gr.Column(scale=2):
+            gr.Markdown("### 示例问题")
+            example_questions = [
+                "什么是RAG？",
+                "RAG和微调有什么区别？",
+                "向量检索的K值怎么选？"
+            ]
+            # 修复：不使用 _js 参数，改用简单的点击填充
+            for q in example_questions:
+                btn = gr.Button(q, size="sm")
+                btn.click(
+                    fn=lambda q=q: q,  # 返回问题文本
+                    outputs=question_input  # 直接输出到输入框
+                )
 
-# 显示历史消息
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-        if "chunks" in message and message["chunks"]:
-            with st.expander("📄 查看检索到的相关片段"):
-                for i, chunk in enumerate(message["chunks"]):
-                    st.markdown(f"**片段 {i + 1}** (来源: `{chunk['metadata']['source']}`)")
-                    st.text(chunk["content"][:500] + ("..." if len(chunk["content"]) > 500 else ""))
+    with gr.Row():
+        with gr.Column():
+            gr.Markdown("### ✨ 系统回答")
+            answer_output = gr.Textbox(label="", lines=8)
+        with gr.Column():
+            gr.Markdown("### 📖 检索到的相关内容")
+            retrieved_output = gr.Textbox(label="", lines=8)
 
-# 输入框
-if prompt := st.chat_input("请输入你的问题..."):
-    # 显示用户问题
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    submit_btn.click(
+        fn=rag_query,
+        inputs=[question_input, k_slider],
+        outputs=[answer_output, retrieved_output]
+    )
 
-    # 添加用户消息到历史
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    gr.Markdown("""
+    ---
+    ### 📌 说明
+    - 知识库包含：技术博客、FAQ、项目文档等
+    - 重排模型：BAAI/bge-reranker-v2-m3
+    - 生成模型：智谱AI GLM-4-Flash
+    """)
 
-    # 生成回答
-    with st.chat_message("assistant"):
-        with st.spinner("正在检索和生成答案..."):
-            try:
-                answer, chunks = rag_query(prompt, st.session_state.vectorstore, k=k_value)
-                st.markdown(answer)
-
-                # 显示检索片段（可折叠）
-                if chunks:
-                    with st.expander("📄 查看检索到的相关片段"):
-                        for i, chunk in enumerate(chunks):
-                            st.markdown(f"**片段 {i + 1}** (来源: `{chunk['metadata']['source']}`)")
-                            st.text(chunk["content"][:500] + ("..." if len(chunk["content"]) > 500 else ""))
-
-                # 添加助手消息到历史
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": answer,
-                    "chunks": chunks
-                })
-            except Exception as e:
-                st.error(f"生成答案时出错: {e}")
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": f"抱歉，出错了: {e}",
-                    "chunks": []
-                })
-
-# 底部清空按钮
-with st.sidebar:
-    st.divider()
-    if st.button("🗑️ 清空对话历史"):
-        st.session_state.messages = []
-        st.rerun()
+if __name__ == "__main__":
+    # 修复：将 theme 参数移到 launch() 中
+    demo.launch(share=True, theme=gr.themes.Soft())
